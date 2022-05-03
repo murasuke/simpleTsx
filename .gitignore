@@ -13,7 +13,7 @@
 # production
 /build
 
-/wwwroot/js/bundle.js
+/public/js/bundle.js
 
 # misc
 .DS_Store

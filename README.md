@@ -3,22 +3,24 @@
 Reactを使えば簡単かつ型安全なtsxでDOMを生成することができます。
 しかし、Reactなどフレームワークを利用せずに、TypeScriptのtsxを利用して型安全にDOMを生成する手順が見つからなかったため、手順をまとめました。
 
+https://github.com/murasuke/simpleTsx
+
 一言にまとめると、
-* tsxをコンパイルして、h()関数の呼び出しに変換し、DOMを生成する。
+* tsxをコンパイルして、h()関数の呼び出しに変換してDOMを生成する。
 * tsxを型安全にするため`interface IntrinsicElements`を利用する
 
 ## 利用ライブラリ
 
-* hyperscript
+* [hyperscript](https://www.npmjs.com/package/hyperscript)
   * h('h1', 'hello!') と書くと、`<h1>hello</h1>`と出力してくれるDOM生成ライブラリ
   * tsx(jsx)はDOMの生成機能を持たない(DOM生成用関数の呼び出しに変換する)ため、DOM生成を行うライブラリを使用する
-* jQuery
+* [jQuery](https://www.npmjs.com/package/jquery)
   * 必須ではないですが、あれば便利なため
-* webpack
+* [webpack](https://www.npmjs.com/package/webpack)
   * hyperscript, jQueryをバンドル(ブラウザで上記ライブラリを利用するために必要)
 ## 動作イメージ
 
-webpackでバンドルした.jsファイルを読み込む。
+webpackでバンドルした.jsファイルを読み込むだけのhtmlファイルを用意します。
 
 index.html
 ```html
@@ -30,7 +32,7 @@ index.html
 </body>
 </html>
 ```
-* jQueryで下記のtsxファイルで作成した&lt;a&gt;タグを追加します。
+* tsxファイルで作成した&lt;a&gt;タグをhtmlへ追加します。
 
 
 index.tsx
@@ -45,6 +47,8 @@ $(() => {
 ```
 
 * 生成後の画面イメージ
+
+  tsxファイルで記載した&lt;a&gt;タグが追加されます。
 
 ![img10](./img/img10.png)
 
@@ -90,7 +94,7 @@ tsconfig.json
   },
   "exclude": [
     "node_modules",
-    "wwwroot"]
+    "public"]
 }
 ```
 `"jsx": "react"`でjsxを有効にします。
@@ -111,7 +115,7 @@ const config = {
     // 出力するファイル名
     filename: 'bundle.js',
     // 出力フォルダ
-    path: path.resolve(__dirname, 'wwwroot/js'),
+    path: path.resolve(__dirname, 'public/js'),
   },
   module: {
     rules: [
@@ -136,14 +140,14 @@ scriptsに、ビルド(build)と実行(start)を追加します。
 ```json
   "scripts": {
     "build": "webpack --mode development",
-    "start": "npx http-server ./wwwroot -o"
+    "start": "npx http-server ./public -o"
   }
 ```
 
 
 ## 手順③html作成
 
-`wwwroot/index.html`ファイルを作成し下記内容を貼り付けます。
+`public/index.html`ファイルを作成し下記内容を貼り付けます。
 
 * `js/bundle.js`は、webpackがバンドルするファイル名です。
 
@@ -212,7 +216,7 @@ declare global {
 `h()`という関数名は、tsconfig.jsonのオプション`"jsxFactory": "h"`で指定した名前です。
 
 ---
-`npx tsc`でコンパイルした`index.js`ファイルから抜粋。確かに`h()`関数の呼び出しに変換されています。
+`npx tsc`でトランスパイルした結果をみると、`h()`関数の呼び出しに変換されています。
 
 ```javascript
 (0, jquery_1.default)(function () {
@@ -221,7 +225,7 @@ declare global {
 ```
 ---
 
-hyperscriptをimportすれば、コンパイル＆実行可能な状態になります。
+`h()`関数を利用できるようにするため、[hyperscript](https://www.npmjs.com/package/hyperscript)のimportを追加します。
 
 ./scripts/index.tsx
 
@@ -260,7 +264,8 @@ npm run start
 
 ### ④-2最低限の動作サンプル(tsx型定義を修正し、&lt;a&gt;タグの全属性を利用可能にする)
 
-現在の型定義では、`<a>`タグの限られた属性しか指定できません。`<a>`タグのすべての属性をサポートするため、`HTMLAnchorElement`(TypeScriptの組み込み型,lib.dom.d.ts)を利用することができます。
+現在の型定義では`<a>`タグかつ、限られた属性(href,target)しか指定できません。
+`HTMLAnchorElement`(TypeScriptの組み込み型,lib.dom.d.ts)を利用すると、`<a>`タグのすべての属性をサポートすることができます。
 
 ./scripts/index.tsx 型定義変更
 
@@ -270,13 +275,13 @@ npm run start
   }
 ```
 
-変更すると、プロパティーが存在しないという別のエラーが発生します。
-これを回避するためには`HTMLAnchorElement`の各プロパティーを`省略可`に変更する必要があります
+変更すると、様々なプロパティーが存在しないという別のエラーが発生します。
+これを回避するためには`HTMLAnchorElement`の各プロパティーを`省略可`に変更する必要があります。
 
 ![img23](./img/img23.png)
 
 
-HTMLAnchorElementのプロパティーを省略可能に変更する組み込み関数`Partial<T>'でラップする
+プロパティーを省略可能に変更する、組み込み関数`Partial<T>`でラップします。
 
 ./scripts/index.tsx
 
@@ -285,7 +290,8 @@ HTMLAnchorElementのプロパティーを省略可能に変更する組み込み
     a: Partial<HTMLAnchorElement>;
   }
 ```
-しかし、`Partial<T>'ではstyle属性のように、入れ子になっている場合に対応ができないため、再帰的に適用する関数を定義して、そちらを利用します。
+しかし、`Partial<T>`ではstyle属性のように、入れ子になっている場合に対応ができません。
+再帰的に適用する関数を別途定義して、そちらを利用するように変更します。
 
 ```typescript
 type NestedPartial<T> = {
@@ -304,7 +310,7 @@ declare global {
 }
 ```
 
-
+これで`<a>`タグの任意の属性を利用、型チェックできるようになりました。
 
 
 ### ④-3最低限の動作サンプル(tsx型定義を修正し、全タグの全属性を利用可能にする)
@@ -324,7 +330,7 @@ declare global {
 }
 ```
 
-TypeScriptの組み込み型定義に、ドンピシャなものがあるのでこれを利用します。
+TypeScriptの組み込み型定義に、タグと型定義が揃った`HTMLElementTagNameMap`があるのでこれを利用します。
 
 ```typescript
 interface HTMLElementTagNameMap {
@@ -333,7 +339,7 @@ interface HTMLElementTagNameMap {
   "address": HTMLElement;
 ```
 
-IntrinsicElementsの定義を以下のように書き換えます
+IntrinsicElementsを以下のように書き換えます。
 * interfaceをextendで拡張します
 * 拡張する際、各属性を再帰的に省略可能にします(`NestedPartial<T>`)
 
@@ -347,31 +353,22 @@ declare global {
 
 これで、tsxを利用して任意のタグを生成することができるようになります。
 
-・・・と言いたいところですが、1点問題が残っています。
+・・・と言いたいところですが、まだ1点問題が残っています。
 
 * `style={{ backgroundColor: '#ccf' }}`と書いても、背景色が変わらない
-  * 原因⇒hyperscriptのStyle属性は`kebab-case`のみサポート。camelCaseは正しく認識されない
+  * 原因⇒hyperscriptのStyle属性は`kebab-case`のみサポート。camelCaseは正しく認識されません。
 
 ```typescript
 $(() => {
   $('#app').append(
     <div style={{ backgroundColor: '#ccf' }}>
       <h2>tsx sample</h2>
-      <div id="div1" className="classname1">
-        <input type="text" id="text1" value="text1" />
-        <button onclick={() => alert($('#text1').val())}>
-          show textbox value
-        </button>
-      </div>
-      <a href="https://npm.im/hyperscript" target="_blank">
-        open hyperscript page
-      </a>
     </div>,
   );
 });
 ```
 
-上記の問題を解決するため、hyperscriptの`h()`関数をラップして`camelCase`を`kebab-case`に変換します。
+上記の問題を解決するため、hyperscriptの`h()`関数をラップしてstyle内の`camelCase`を`kebab-case`に変換します。
 
 
 ```typescript
@@ -404,6 +401,8 @@ const h = (tagName: string, attrs?: Object, ...children: any[]): Element => {
 ```
 
 ### ④-4最低限の動作サンプル(完成)
+
+1つのファイルに共通で使う部品と、画面に表示するロジックを混在させているため再利用しづらいです。後で分割します。
 
 ```typescript
 import $ from 'jquery';
@@ -449,6 +448,7 @@ declare global {
   }
 }
 
+// html側にDOMを追加
 $(() => {
   $('#app').append(
     <div style={{ backgroundColor: '#ccf' }}>
@@ -553,7 +553,7 @@ declare global {
 export default h;
 ```
 
-tsxlibをimportすることで、修正版`h()`の利用と、tsxの型定義が利用できるようになる。
+tsxlibをimportすることで、修正版`h()`の利用と、tsxの型定義が利用できるようになります。
 
 ./scripts/index.tsx
 
